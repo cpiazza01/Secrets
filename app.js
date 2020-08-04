@@ -65,7 +65,7 @@ passport.use(new GoogleStrategy({
     //callbackURL: "http://localhost:3000/auth/google/secrets"
 
     //heroku
-    callbackURL: "https://secret-taiga-03510.herokuapp.com/secrets"
+    callbackURL: "https://secret-taiga-03510.herokuapp.com/auth/google/secrets"
   },
   function(accessToken, refreshToken, profile, cb) {
     console.log(profile);
