@@ -8,6 +8,7 @@ const session = require("express-session");
 const passport = require("passport");
 const plm = require("passport-local-mongoose");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
+const FacebookStrategy = require("passport-facebook").Strategy;
 const findOrCreate = require("mongoose-findorcreate");
 
 const app = express();
@@ -20,7 +21,7 @@ app.use(bodyParser.urlencoded({
 }));
 
 app.use(session({
-  secret: "Our little secret",
+  secret: process.env.SECRET,
   resave: false,
   saveUninitialized: false
 }));
@@ -37,7 +38,8 @@ mongoose.set("useCreateIndex", true);
 const userSchema = new mongoose.Schema({
   email: String,
   password: String,
-  googleId: String
+  googleId: String,
+  facebookId: String
 });
 
 userSchema.plugin(plm);
@@ -57,7 +59,22 @@ passport.deserializeUser(function(id, done) {
     done(err, user);
   });
 });
-console.log(process.env.GOOGLE_CLIENT_ID);
+passport.use(new FacebookStrategy({
+    clientID: process.env.FACEBOOK_CLIENT_ID,
+    clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
+    //local
+    //callbackURL: "http://localhost:3000/auth/facebook/secrets"
+
+    //heroku
+    callbackURL: "https://secret-taiga-03510.herokuapp.com/auth/facebook/secrets"
+  },
+  function(accessToken, refreshToken, profile, cb) {
+    console.log(profile);
+    User.findOrCreate({ facebookId: profile.id }, function (err, user) {
+      return cb(err, user);
+    });
+  }
+));
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -87,6 +104,15 @@ app.get("/auth/google/secrets",
     // Successful authentication, redirect home.
     res.redirect('/secrets');
   });
+
+  app.get("/auth/facebook", passport.authenticate("facebook"));
+
+  app.get("/auth/facebook/secrets",
+    passport.authenticate('facebook', { failureRedirect: "/login" }),
+    function(req, res) {
+      // Successful authentication, redirect home.
+      res.redirect('/secrets');
+    });
 
 app.get("/login", function(req, res) {
   res.render("login");
