@@ -39,7 +39,8 @@ const userSchema = new mongoose.Schema({
   email: String,
   password: String,
   googleId: String,
-  facebookId: String
+  facebookId: String,
+  secret: String
 });
 
 userSchema.plugin(plm);
@@ -63,14 +64,16 @@ passport.use(new FacebookStrategy({
     clientID: process.env.FACEBOOK_CLIENT_ID,
     clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
     //local
-    //callbackURL: "http://localhost:3000/auth/facebook/secrets"
+    callbackURL: "http://localhost:3000/auth/facebook/secrets"
 
     //heroku
-    callbackURL: "https://secret-taiga-03510.herokuapp.com/auth/facebook/secrets"
+    //callbackURL: "https://secret-taiga-03510.herokuapp.com/auth/facebook/secrets"
   },
   function(accessToken, refreshToken, profile, cb) {
     console.log(profile);
-    User.findOrCreate({ facebookId: profile.id }, function (err, user) {
+    User.findOrCreate({
+      facebookId: profile.id
+    }, function(err, user) {
       return cb(err, user);
     });
   }
@@ -86,7 +89,9 @@ passport.use(new GoogleStrategy({
   },
   function(accessToken, refreshToken, profile, cb) {
     console.log(profile);
-    User.findOrCreate({ googleId: profile.id }, function (err, user) {
+    User.findOrCreate({
+      googleId: profile.id
+    }, function(err, user) {
       return cb(err, user);
     });
   }
@@ -96,23 +101,37 @@ app.get("/", function(req, res) {
   res.render("home");
 });
 
-app.get("/auth/google", passport.authenticate("google", {scope: ['profile']}));
+app.get("/auth/google", passport.authenticate("google", {
+  scope: ['profile']
+}));
 
 app.get("/auth/google/secrets",
-  passport.authenticate('google', { failureRedirect: "/login" }),
+  passport.authenticate('google', {
+    failureRedirect: "/login"
+  }),
   function(req, res) {
     // Successful authentication, redirect home.
     res.redirect('/secrets');
   });
 
-  app.get("/auth/facebook", passport.authenticate("facebook"));
+app.get("/auth/facebook", passport.authenticate("facebook"));
 
-  app.get("/auth/facebook/secrets",
-    passport.authenticate('facebook', { failureRedirect: "/login" }),
-    function(req, res) {
-      // Successful authentication, redirect home.
-      res.redirect('/secrets');
-    });
+app.get("/auth/facebook/secrets",
+  passport.authenticate('facebook', {
+    failureRedirect: "/login"
+  }),
+  function(req, res) {
+    // Successful authentication, redirect home.
+    res.redirect('/secrets');
+  });
+
+app.get("/submit", function(req, res) {
+  if (req.isAuthenticated()) {
+    res.render("submit");
+  } else {
+    res.redirect("/login");
+  }
+})
 
 app.get("/login", function(req, res) {
   res.render("login");
@@ -123,11 +142,15 @@ app.get("/register", function(req, res) {
 });
 
 app.get("/secrets", function(req, res) {
-  if (req.isAuthenticated()) {
-    res.render("secrets");
-  } else {
-    res.redirect("/login");
-  }
+  User.find({"secret": {$ne: null}}, function(err, users) {
+    if (err) {
+      console.log(err);
+    } else {
+      if (users) {
+        res.render("secrets", {usersWithSecrets: users});
+      }
+    }
+  });
 });
 
 app.get("/logout", function(req, res) {
@@ -146,6 +169,22 @@ app.post("/register", function(req, res) {
       passport.authenticate("local")(req, res, function() {
         res.redirect("/secrets")
       });
+    }
+  });
+});
+
+app.post("/submit", function(req, res) {
+  const secret = req.body.secret;
+  User.findById(req.user.id, function(err, user) {
+    if (err) {
+      console.log(err);
+    } else {
+      if (user) {
+        user.secret = secret;
+        user.save(function() {
+          res.redirect("/secrets");
+        });
+      }
     }
   });
 });
